@@ -1,0 +1,40 @@
+---
+- name: Give permissions to kaggle file
+  file:
+    path: /home/ubuntu/.kaggle/kaggle.json
+    mode: '600'
+
+- name: Give permissions to secrets file
+  file:
+    path: /home/ubuntu/.secrets/secrets.yaml
+    mode: '600'
+
+- name: Github user email
+  command: git config --global user.email {{ secrets.git.email }}
+
+- name: Github user name
+  command: git config --global user.name {{ secrets.git.name }}
+
+- name: Github user email
+  command: git config --global user.email {{ secrets.git.email }}
+
+- name: Github merge tool
+  command: git config --global merge.tool vimdiff
+
+- name: Set region
+  command: gcloud config set compute/region {{ secrets.project.region }}
+
+- name: Set zone
+  command: gcloud config set compute/zone {{ secrets.project.zone }}
+  register: config
+
+- name: Set project
+  command: gcloud config set project {{ secrets.project.name }}
+  register: config
+
+- name: Register configurations
+  command: gcloud config list
+  register: config
+
+- name: Current configs
+  debug: var=config.stdout_lines

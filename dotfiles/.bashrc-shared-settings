@@ -1,0 +1,112 @@
+# source this file in ~/.bashrc to get settings and aliases
+
+export PROMPT_DIRTRIM=3
+bind 'set bell-style none'
+export EDITOR=vim
+
+parse_git_branch() {
+ git branch 2> /dev/null | sed -e '/^[^*]/d' -e 's/* \(.*\)/(\1)/'
+}
+PS1='${debian_chroot:+($debian_chroot)}\[\033[1;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[01;31m\]$(parse_git_branch)\[\033[00m\]\$ '
+#PS1='\[\033[1;36m\]\u\[\033[1;31m\]@\[\033[1;32m\]\h:\[\033[1;35m\]\w\[\033[1;31m\]\$\[\033[0m\] '
+
+# common aliases
+alias ll='ls -alF'
+alias la='ls -A'
+alias ls='ls -hN --color=auto --group-directories-first'
+alias l='ls -CF'
+alias q='exit'
+alias c='clear'
+alias h='history'
+alias grep='grep --color=auto'
+
+alias main='source /user/home/venvs/main/bin/activate'
+alias venv='source /venv/bin/activate'
+
+alias kpods='kubectl get pods'
+alias krunning='kubectl get pods --field-selector=status.phase=Running'
+alias kfailed='kubectl get pods --field-selector=status.phase=Failed'
+alias kimagepull='kubectl get pods --field-selector=status.phase=ImagePullBackOff'
+alias kdel_imagepull='kubectl delete pod --field-selector=status.phase=ImagePullBackOff'
+alias kdel_failed='kubectl delete pod --field-selector=status.phase==Failed'
+alias kdel_succeeded='kubectl delete pod --field-selector=status.phase==Succeeded'
+
+alias git_large_files="git rev-list --objects --all | git cat-file --batch-check='%(objecttype) %(objectname) %(objectsize) %(rest)' | sed -n 's/^blob //p' | sort --numeric-sort --key=2 | tail -n 20 | cut -c 1-12,41- | $(command -v gnumfmt || echo numfmt) --field=2 --to=iec-i --suffix=B --padding=7 --round=nearest"
+
+# rc
+alias bashrc='vim ~/.bashrc'
+alias sourcebash='source ~/.bashrc'
+alias vimrc='vim ~/.vimrc'
+alias bashsettings='vim /km-gcp/dotfiles/.bashrc-shared-settings'
+
+# folders
+alias home='cd /km-gcp/analysis'
+alias root='cd /'
+alias km='cd /km-gcp/'
+alias Projects='cd ~/Projects'
+alias Desktop='cd ~/Desktop'
+
+# mysql
+alias sql='mysql'
+
+alias ssh_vagrant='ssh -XY -i C:/Users/janne/km-gcp/util/.vagrant/machines/default/virtualbox/private_key vagrant@127.0.0.1 -p 2222'
+
+function create_schemas() {
+    for val in $@;do
+        name=${val##*.}
+        echo "Creating schema for '${name}'"
+        bq show --format=prettyjson $val | jq '.schema.fields' > $name.schema
+    done
+}
+
+function kconnect() {
+    kubectl exec -ti $1 /bin/bash
+}
+
+function klogs() {
+    kubectl logs -f $1
+}
+
+function gdelete_instance() {
+  gcloud compute instances delete $1
+}
+
+function gstart_instance() {
+  gcloud compute instances start $1
+}
+
+function gstop_instance() {
+  gcloud compute instances stop $1
+}
+
+function glist() {
+  gcloud compute instances list
+}
+
+function gconf() {
+  gcloud config list
+}
+
+function delete_minikube_all() {
+    sudo minikube stop
+    sudo minikube delete
+    sudo rm -rf ~/.kube
+    sudo rm -rf ~/.minikube
+    sudo rm -rf /var/lib/minikube
+    sudo rm -rf /etc/kubernetes
+    sudo rm -rf /root/.minikube
+    sudo rm -rf /usr/local/bin/minikube
+}
+
+
+# export PATH="$PATH:/home/vagrant/venv/lib/python3.7/site-packages"
+# export PATH="$PATH:/venv/lib/python3.7/site-packages"
+# export PYTHONPATH=/venv/lib/python3.7/site-packages
+# export VIRTUALENV_ALWAYS_COPY=1
+
+# https://www.kubeflow.org/docs/started/workstation/minikube-linux/
+export PATH=$PATH:$HOME/miniconda/bin
+export PATH=$PATH:$HOME/kubeflow/v1.0
+export KF_DIR=$HOME/kubeflow/v1.0/kubeflow-dev
+export CONFIG_URI="https://raw.githubusercontent.com/kubeflow/manifests/v1.0-branch/kfdef/kfctl_k8s_istio.v1.0.2.yaml" 
+. /opt/conda/etc/profile.d/conda.sh

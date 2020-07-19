@@ -1,0 +1,19 @@
+---
+services:
+  composer:
+    name: nordic-composer
+    disk: "50GB"
+    machine: n1-standard-1
+    nodes: 3
+    python_version: 3
+  kubernetes:
+    name: nordic-kubernetes
+    machine: n1-standard-8
+    image: ubuntu
+    nodes: 1
+    gpu_count: 2
+    gpu_type: nvidia-tesla-k80
+    disk: "300GB"
+    disk_type: pd-standard
+    min_nodes: 0
+    max_nodes: 3

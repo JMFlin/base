@@ -1,0 +1,25 @@
+---
+# kubeflow: https://www.kubeflow.org/docs/started/workstation/minikube-linux/
+# https://www.kubeflow.org/docs/pipelines/overview/pipelines-overview/
+
+- name: Create kubeflow directory
+  file: path={{ lookup('env','HOME') }}/kubeflow state=directory
+
+- name: Create kubeflow directory
+  file: path={{ lookup('env','HOME') }}/kubeflow/v1.0 state=directory
+
+- name: Download kubeflow
+  get_url:
+    url: https://github.com/kubeflow/kfctl/releases/download/v1.0.2/kfctl_v1.0.2-0-ga476281_linux.tar.gz
+    dest: "{{ lookup('env','HOME') }}/kubeflow/v1.0"
+
+- name: Install kubeflow
+  shell: tar -xvf {{ lookup('env','HOME') }}/kubeflow/v1.0/kfctl_v1.0.2-0-ga476281_linux.tar.gz
+
+- name: Move files
+  shell: mv kfctl {{ lookup('env','HOME') }}/kubeflow/v1.0/
+
+- name: Remove installation file
+  file:
+    state: absent
+    path: "{{ lookup('env','HOME') }}/kubeflow/v1.0/kfctl_v1.0.2-0-ga476281_linux.tar.gz"

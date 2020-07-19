@@ -1,0 +1,9 @@
+---
+- name: Install required applications
+  hosts: localhost
+  connection: local
+  become: true  # This means that all tasks will be executed with sudo
+  vars_files:
+    - /home/ubuntu/.secrets/secrets.yaml
+  roles:
+    - environment

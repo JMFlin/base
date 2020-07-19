@@ -1,0 +1,95 @@
+---
+
+# minikube: https://minikube.sigs.k8s.io/docs/start/
+# Grant user permission: https://stackoverflow.com/questions/58541104/minikube-wont-work-after-ubuntu-upgrade-to-19-10
+
+# minikube start --vm-driver=none --cpus 6 --memory 12288 --disk-size=120g --extra-config=apiserver.authorization-mode=RBAC --extra-config=kubelet.resolv-conf=/run/systemd/resolve/resolv.conf --extra-config kubeadm.ignore-preflight-errors=SystemVerification
+
+
+- name: Check parameter driver
+  fail: 
+    msg: "Please use following -e driver=none or docker"  
+  when: driver is undefined
+
+- name: Grep virtualization
+  shell: grep -E --color 'vmx|svm' /proc/cpuinfo | cat
+  register: virtualization
+  check_mode: no
+  when: 
+  - driver == 'docker'
+
+- name: Check virtualization
+  fail: 
+    msg: 'Virtualization is not supported on your Linux. Please install VirtualBox'
+  when: 
+  - driver == 'docker'
+  - not virtualization.stderr
+
+- name: Download minikube
+  get_url:
+    url: https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
+    dest: .
+
+- name: Install minikube
+  shell: install minikube-linux-amd64 /usr/local/bin/minikube
+  
+- name: Install conntrack
+  shell: apt-get install -y conntrack
+  
+- name: Remove installation file
+  file:
+    state: absent
+    path: minikube-linux-amd64
+
+- name: Start minikube
+  shell: minikube start --driver={{ driver }}
+
+- name: Start minikube
+  shell: minikube config set driver docker
+  
+- name: Copy .kube 
+  shell: cp -r /root/.kube {{ lookup('env','HOME') }} # /home/vagrant
+
+- name: Copy .minikube 
+  shell: cp -r /root/.minikube {{ lookup('env','HOME') }} # /home/vagrant
+  
+- name: Permission to user for .kube
+  shell: chown -R {{ lookup('env','USER') }} {{ lookup('env','HOME') }}/.kube
+
+- name: Permission to user for .minikube
+  shell: chown -R {{ lookup('env','USER') }} {{ lookup('env','HOME') }}/.minikube
+
+- name: client-certificate
+  replace:
+    path: "{{ lookup('env','HOME') }}/.kube/config"
+    regexp: '/root/.minikube/profiles/minikube/client.crt'
+    replace: "{{ lookup('env','HOME') }}/.minikube/profiles/minikube/client.crt"
+  
+- name: client-key
+  replace:
+    path: "{{ lookup('env','HOME') }}/.kube/config"
+    regexp: '/root/.minikube/profiles/minikube/client.key'
+    replace: "{{ lookup('env','HOME') }}/.minikube/profiles/minikube/client.key"
+
+- name: certificate-authority
+  replace:
+    path: "{{ lookup('env','HOME') }}/.kube/config" 
+    regexp: '/root/.minikube/ca.crt'
+    replace: "{{ lookup('env','HOME') }}/.minikube/ca.crt"
+  
+- name: Register output
+  command: minikube status
+  register: config
+
+- name: Minikube configs
+  debug: var=config.stdout_lines
+
+- pause:
+    seconds: 3
+
+- name: Register output
+  command: kubectl get pods -A
+  register: kubectl
+
+- name: Verify that kubectl works with minikube
+  debug: var=kubectl.stdout_lines

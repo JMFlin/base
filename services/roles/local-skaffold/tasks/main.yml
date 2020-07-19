@@ -1,0 +1,21 @@
+---
+# skaffold: https://skaffold.dev/docs/install/
+
+- name: Download skaffold
+  shell: curl -Lo skaffold https://storage.googleapis.com/skaffold/releases/latest/skaffold-linux-amd64
+  
+- name: Install skaffold
+  shell: install skaffold /usr/local/bin/
+  become: True
+
+- name: Remove installation file
+  file:
+    state: absent
+    path: skaffold
+
+- name: Register output
+  command: skaffold version
+  register: config
+
+- name: Skaffold configs
+  debug: var=config.stdout_lines

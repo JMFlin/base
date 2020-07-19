@@ -1,0 +1,39 @@
+---
+# docker: https://phoenixnap.com/kb/how-to-install-docker-on-ubuntu-18-04
+# https://www.kubeflow.org/docs/started/workstation/minikube-linux/
+
+- name: Download docker
+  shell: curl -fsSL get.docker.com -o get-docker.sh && chmod +x get-docker.sh
+
+- name: Install docker
+  shell: sh get-docker.sh
+
+- name: Usermod
+  shell: usermod -aG docker {{ lookup('env','USER') }}
+  become: True
+
+- name: Enable docker
+  shell: systemctl enable docker
+  become: True
+
+- name: Remove installation file
+  file:
+    state: absent
+    path: get-docker.sh
+
+- name: Docker login
+  command: docker login --username {{ secrets.docker.user }} --password {{ secrets.docker.password }}
+
+- name: Register output
+  command: docker --version
+  register: config
+
+- name: Register output
+  command: docker run hello-world
+  register: config_hello
+
+- name: Docker configs
+  debug: var=config_hello.stdout_lines
+
+- name: Docker configs
+  debug: var=config.stdout_lines

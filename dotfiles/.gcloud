@@ -1,0 +1,264 @@
+#!/usr/bin/env bash
+
+function gregions() {
+  REGIONS=$(gcloud compute regions list)
+  echo $REGIONS | cut -d " " -f 1 | tail -n +2
+}
+
+function gzones() {
+  ZONES=$(gcloud compute zones list)
+  echo $ZONES | cut -d " " -f 1 | tail -n +2
+}
+
+function gset_instance_name() {
+  if [[ $1 == *['!'@#\$%^\&*(),._+]* ]] ; then 
+    echo "Special characters not allowed in instance name (!@#$%^\&*().,_+)"
+  else
+    INSTANCE_NAME=$1
+    inputdir="/km-gcp/dotfiles/.gcloud_config"
+    sed -i -e "1 s/^.*$/export INSTANCE_NAME='${INSTANCE_NAME}'/" ${inputdir}
+    echo "Set instance name to $INSTANCE_NAME"
+  fi
+}
+
+function gset_gpu_count() {
+  if [[ $1 != 1 && $1 != 2 && $1 != 4 && $1 != 8 ]] ; then
+    echo "Number of accelerator cards attached to an instance must be one of [1, 2, 4, 8]"
+  else
+    GPU_COUNT=$1
+    inputdir="/km-gcp/dotfiles/.gcloud_config"
+    sed -i -e "8 s/^.*$/export GPU_COUNT='${GPU_COUNT}'/" ${inputdir}
+    echo "Set GPU count to $GPU_COUNT"
+  fi
+}
+
+function gset_project() {
+  gcloud config set project $1
+}
+
+function gset_zone_region() {
+  gcloud config set compute/zone $ZONE
+  gcloud config set compute/region $REGION
+  echo "Set zone: $ZONE region: $REGION"
+}
+
+function gset_account() {
+  gcloud config set core/account $1
+}
+
+function gset_instance_type() {
+  INSTANCE_TYPE=$1
+  inputdir="/km-gcp/dotfiles/.gcloud_config"
+  sed -i -e "2 s/^.*$/export INSTANCE_TYPE='${INSTANCE_TYPE}'/" ${inputdir}
+  echo "Set instance name to $INSTANCE_TYPE"
+}
+
+function gget_instance_name() { 
+  echo "$INSTANCE_NAME"
+}
+
+function gssh() {
+  if [ -z "$1" ] ; then
+    name=$INSTANCE_NAME
+  else
+    name=$1
+  fi
+  gcloud compute ssh $name
+}
+
+function gssh_8080() {
+  gssh $1 -- -L 8080:localhost:8080
+}
+
+function ginstance_serial_logs() {
+  gcloud compute instances get-serial-port-output $@
+}
+
+function gset_firewall() {
+  if [ -z "$2" ] ; then
+    tag=$TAG
+  else
+    tag=$2
+  fi
+
+  gcloud compute firewall-rules create $1 --allow tcp:6006 \
+    --target-tags $tag \
+    --description "Allow incoming traffic on TCP port 6006" \
+    --direction INGRESS
+}
+
+function gget_firewall() {
+  gcloud compute firewall-rules list
+}
+
+function gdelete_firewall() {
+  gcloud compute firewall-rules delete $1
+}
+
+function gallow_http_ports() {
+  allow_port 80
+  allow_port 443
+}
+
+function gallow_port() {
+  gcloud compute firewall-rules create allow-port-$1 --allow tcp:$1
+}
+
+function gcreate_instance_gpu() {
+  source ~/.bashrc
+  if [ -z "$1" ] ; then
+    name=$INSTANCE_NAME
+  else
+    name=$1
+  fi
+
+  if [ -z "$2" ] ; then
+    tag=$TAG
+  else
+    tag=$2
+  fi
+
+  if [[ $name == *['!'@#\$%^\&*(),._+]* ]] ; then 
+    echo "Special characters not allowed in instance name (!@#$%^\&*().,_+)"
+  else
+    echo "Creating preemptible GPU instance $name in $ZONE with image $IMAGE_FAMILY and $GPU_COUNT GPUs"
+    gcloud compute instances create $name \
+       --image-family $IMAGE_FAMILY \
+       --image-project deeplearning-platform-release \
+       --zone $ZONE \
+       --boot-disk-auto-delete \
+       --boot-disk-size $DISK_SIZE \
+       --machine-type $INSTANCE_TYPE \
+       --accelerator type=$GPU_TYPE,count=$GPU_COUNT \
+       --tags=$tag \
+       --subnet default --maintenance-policy TERMINATE --restart-on-failure \
+       --metadata-from-file startup-script=/km-gcp/util/startup-scripts/startup.sh \
+       --preemptible \
+       --metadata="install-nvidia-driver=True"
+  fi
+}
+
+function gtransfer_files_to_instance() {
+  if [ -z "$2" ] ; then
+    name=$INSTANCE_NAME
+  else
+    name=$1
+  fi
+
+  gcloud compute scp --recurse /km-gcp/util/.kaggle $INSTANCE_NAME:~
+  gcloud compute scp --recurse /km-gcp/analysis/$COMPETITION_NAME $INSTANCE_NAME:~
+}
+
+function gtransfer_files_from_instance() {
+  competition=${PWD##*/}
+  name=$INSTANCE_NAME
+  if [[ $2 == 'recurse' ]] ; then 
+    gcloud compute scp --recurse $name:~/km-gcp/analysis/$competition/$1 /km-gcp/analysis/$competition/$1
+  fi
+
+  if [ -z "$2" ] ; then 
+    gcloud compute scp $name:~/km-gcp/analysis/$competition/$1 /km-gcp/analysis/$competition/$1
+  fi
+}
+
+function kill_all_detached_screens() {
+  #http://orcaman.blogspot.com/2013/08/google-compute-engine-keeping-your.html
+  #screen -ls | grep pts | cut -d. -f1 | awk '{print $1}' | xargs kill
+  screen -ls | grep Detached | cut -d. -f1 | awk '{print $1}' | xargs kill
+}
+
+function run_training_in_background() {
+  #https://janakiev.com/til/python-background/
+  #https://medium.com/omnius/keras-horovod-distributed-deep-learning-on-steroids-94666e16673d
+  conda activate main
+  nohup bash run.sh > logs/output.log &
+  # -mca btl ^openib stops looking for infiniband!
+}
+
+function run_predicting_in_background() {
+  conda activate main
+  nohup python predict.py > logs/output.log &
+}
+
+function watch_gpu() {
+  # https://superuser.com/questions/454907/how-to-execute-a-command-in-screen-and-detach
+  screen -d -m watch -n 2 nvidia-smi
+  screen -r
+}
+
+function run_python_in_background() {
+  conda activate main
+  nohup mpirun -np 2 \
+      -oversubscribe \
+      -bind-to none -map-by slot \
+      -x NCCL_DEBUG=INFO -x LD_LIBRARY_PATH -x PATH \
+      -mca pml ob1 -mca btl ^openib \
+      python $1 > logs/output.log &
+  # -mca btl ^openib stops looking for infiniband!
+}
+
+function run_tensorboard_in_background() {
+  conda activate main
+  if [ -z "$1" ] ; then
+    nohup tensorboard --logdir logs/ --host 0.0.0.0 --port 6006 > logs/tensorboard.log &
+  else
+    nohup tensorboard --logdir $1 --host 0.0.0.0 --port 6006 > logs/tensorboard.log &    
+  fi
+}
+
+function gget_external_ip() {
+  echo "Copy the following to your browser to view tensorboard output:"
+  echo "$(gcloud compute instances describe $INSTANCE_NAME --format='get(networkInterfaces[0].accessConfigs[0].natIP)'):6006"
+}
+
+function style() {
+  autopep8 --in-place --max-line-length 120 --verbose --aggressive $1
+}
+
+function clear_logs_figs_checkpoint() {
+  rm -rf logs/
+  rm -rf checkpoint/
+  rm -rf figs/
+
+  mkdir logs/
+  mkdir checkpoint/
+  mkdir figs/
+}
+
+function kaggle_leaderboard() {
+  conda activate main
+  competition=${PWD##*/} 
+
+  if [ -z "$1" ] ; then
+    kaggle competitions leaderboard $competition -s
+  else
+    kaggle competitions leaderboard $1 -s
+  fi
+}
+
+function kaggle_submit() {
+  conda activate main
+  competition="${PWD##*/}"
+  today=date
+
+  echo "Looking for submission.csv file in $competition"
+  echo "Submitting to competition name: $competition"
+
+  if [ -z "$1" ] ; then
+    kaggle competitions submit $competition -f submission.csv -m "submission $INSTANCE_NAME $today"
+  else
+    kaggle competitions submit $competition -f $1 -m "submission $INSTANCE_NAME $today"
+  fi
+}
+
+# alias gcomppre='gcloud compute instances create ml-kaggle \
+#   --zone=$ZONE \
+#   --image-family="tf-latest-gpu" \
+#   --boot-disk-size 250GB \
+#   --machine-type n1-standard-8 \
+#   --image-project=deeplearning-platform-release \
+#   --maintenance-policy=TERMINATE \
+#   --accelerator="type=nvidia-tesla-k80,count=2" \
+#   --metadata="install-nvidia-driver=True" \
+#   --preemptible
+#   '
