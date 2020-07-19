@@ -49,7 +49,7 @@ alias Desktop='cd ~/Desktop'
 # mysql
 alias sql='mysql'
 
-alias ssh_vagrant='ssh -XY -i C:/Users/janne/km-gcp/util/.vagrant/machines/default/virtualbox/private_key vagrant@127.0.0.1 -p 2222'
+alias ssh_vagrant='ssh -XY -i ../util/.vagrant/machines/default/virtualbox/private_key vagrant@127.0.0.1 -p 2222'
 
 function create_schemas() {
     for val in $@;do
