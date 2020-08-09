@@ -1,0 +1,10 @@
+---
+- name: Give permissions to kaggle file
+  file:
+    path: /home/ubuntu/.kaggle/kaggle.json
+    mode: '600'
+
+- name: Give permissions to secrets file
+  file:
+    path: /home/ubuntu/.secrets/secrets.yaml
+    mode: '600'
