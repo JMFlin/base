@@ -1,21 +1,17 @@
 ---
 
 - name: Update and upgrade apt packages for kubectl
-  become: True
   apt:
     upgrade: yes
     update_cache: no
 
 - name: aptkey
   shell: curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add -
-  become: True
 
 - name: Echo
   shell: echo "deb https://apt.kubernetes.io/ kubernetes-xenial main" | sudo tee -a /etc/apt/sources.list.d/kubernetes.list
-  become: True
 
 - name: Update and upgrade apt packages
-  become: True
   apt:
     upgrade: yes
     update_cache: no

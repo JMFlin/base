@@ -8,28 +8,28 @@ Vagrant.configure("2") do |config|
   config.vm.box = "ubuntu/xenial64"
 
   # Host name
-  config.vm.hostname = "acn-dev"
+  config.vm.hostname = "vagrant"
 
   # Set disc size
-  config.disksize.size = '150GB'
+  config.disksize.size = '450GB'
 
   # X11 forwarding over ssh
   config.ssh.forward_x11 = true
   
+  # Network port forwarding
+  config.vm.network "forwarded_port", guest: 8501, host: 8501
+
   # Message
   config.vm.post_up_message = "Run 'vagrant ssh' to login to the machine."
 
   # Mount
   config.vm.synced_folder ".", "/vagrant", disabled: true
-  config.vm.synced_folder "../..", "/projects"
+  config.vm.synced_folder "../..", "/RUDOLF"
 
   config.vm.synced_folder ENV['HOME'] + "/.kaggle", "/home/ubuntu/.kaggle", mount_options: ['dmode=700,fmode=600']
   config.vm.synced_folder ENV['HOME'] + "/.secrets", "/home/ubuntu/.secrets", mount_options: ['dmode=700,fmode=600']
 
   config.vm.provision "shell", inline: <<-SHELL
-    #echo "export KAGGLE_CONFIG_DIR='/home/ubuntu/.kaggle'" >> /etc/profile.d/myvar.sh
-    #echo "export GOOGLE_APPLICATION_CREDENTIALS='/home/ubuntu/.secrets/service_account.json'" >> /etc/profile.d/myvar.sh
-    #echo "export VIRTUALENV_ALWAYS_COPY=1" >> /etc/profile.d/myvar.sh
 
     if ! sudo grep -q "export KAGGLE_CONFIG_DIR='/home/ubuntu/.kaggle'" /etc/profile.d/myvar.sh ; then
       sudo echo "export KAGGLE_CONFIG_DIR='/home/ubuntu/.kaggle'" >> /etc/profile.d/myvar.sh
@@ -43,9 +43,39 @@ Vagrant.configure("2") do |config|
       sudo echo "export VIRTUALENV_ALWAYS_COPY=1" >> /etc/profile.d/myvar.sh
     fi
 
-    if ! sudo grep -q "source /base/dotfiles/.bashrc-shared-settings" .bashrc ; then
-      sudo echo "source /base/dotfiles/.bashrc-shared-settings" >> .bashrc
+    if ! sudo grep -q "source /RUDOLF/base/dotfiles/.bashrc-shared-settings" .bashrc ; then
+      sudo echo "source /RUDOLF/base/dotfiles/.bashrc-shared-settings" >> .bashrc
     fi
+
+
+    if ! sudo grep -q "export CHANGE_MINIKUBE_NONE_USER=true" /etc/profile.d/myvar.sh ; then
+      sudo echo "export CHANGE_MINIKUBE_NONE_USER=true" >> /etc/profile.d/myvar.sh
+    fi
+
+    if ! sudo grep -q "export MINIKUBE_WANTUPDATENOTIFICATION=false" /etc/profile.d/myvar.sh ; then
+      sudo echo "export MINIKUBE_WANTUPDATENOTIFICATION=false" >> /etc/profile.d/myvar.sh
+    fi
+
+    if ! sudo grep -q "export MINIKUBE_WANTREPORTERRORPROMPT=false" /etc/profile.d/myvar.sh ; then
+      sudo echo "export MINIKUBE_WANTREPORTERRORPROMPT=false" >> /etc/profile.d/myvar.sh
+    fi
+
+    if ! sudo grep -q "export MINIKUBE_HOME='/home/vagrant'" /etc/profile.d/myvar.sh ; then
+      sudo echo "export MINIKUBE_HOME='/home/vagrant'" >> /etc/profile.d/myvar.sh
+    fi
+
+    if ! sudo grep -q "export KUBECONFIG='/home/vagrant/.kube/config'" /etc/profile.d/myvar.sh ; then
+      sudo echo "export KUBECONFIG='/home/vagrant/.kube/config'" >> /etc/profile.d/myvar.sh
+    fi
+
+    if ! sudo grep -q "export MINIKUBE_MEMORY=26000" /etc/profile.d/myvar.sh ; then
+      sudo echo "export MINIKUBE_MEMORY=26000" >> /etc/profile.d/myvar.sh
+    fi
+
+    if ! sudo grep -q "export MINIKUBE_CPU=4" /etc/profile.d/myvar.sh ; then
+      sudo echo "export MINIKUBE_CPU=4" >> /etc/profile.d/myvar.sh
+    fi
+
   SHELL
 
   config.vm.provider "virtualbox" do |vb|
@@ -53,10 +83,11 @@ Vagrant.configure("2") do |config|
     vb.gui = false
 
     # Virtualbox name
-    vb.name = "acn-dev"
-  
-    # Customize the amount of memory on the VM:
-    vb.memory = "10024"
+    vb.name = "developer-box"
+
+    # Customize amount of memeory and cpu
+    vb.customize ["modifyvm", :id, "--memory", "36000", "--cpus", "4", "--ioapic", "on", "--cpuexecutioncap", "100"]
+
   end
 
   offset = ((Time.zone_offset(Time.now.zone) / 60) / 60)
@@ -80,7 +111,10 @@ Vagrant.configure("2") do |config|
       sudo apt-get install ntp && \
       sudo apt-get install wget && \
       sudo apt-get install openssl && \
-      sudo apt-get install imagemagick
+      sudo apt-get install imagemagick && \
+      sudo apt-get install python-apt && \
+      sudo apt-get install postgresql-client-common && \
+      sudo apt-get install postgresql-client
 
 
     # gcloud
@@ -135,39 +169,15 @@ Vagrant.configure("2") do |config|
     sudo apt-get install build-essential cmake pkg-config libx11-dev libatlas-base-dev libgtk-3-dev libboost-python-dev -y
 
     # ansible
-    sudo apt-add-repository -y ppa:ansible/ansible && \
+    sudo -E apt-add-repository -y ppa:ansible/ansible && \
       sudo apt-get update && \
       sudo apt-get -y install ansible && \
-      ansible-playbook /base/util/setup/provisioner.yml
+      ansible-playbook /projects/base/util/setup/provisioner.yml
 
     #config.vm.provision "ansible" do |ansible|
     #  ansible.verbose = "v"
-    #  ansible.playbook = "/base/util/setup/provisioner.yml"
+    #  ansible.playbook = "/RUDOLF/base/util/setup/provisioner.yml"
     #end
-
-  SHELL
-
-  config.vm.provision "shell", inline: <<-SHELL
-    
-    if ! sudo grep -q "export CHANGE_MINIKUBE_NONE_USER=true" /etc/profile.d/myvar.sh ; then
-      sudo echo "export CHANGE_MINIKUBE_NONE_USER=true" >> /etc/profile.d/myvar.sh
-    fi
-
-    if ! sudo grep -q "export MINIKUBE_WANTUPDATENOTIFICATION=false" /etc/profile.d/myvar.sh ; then
-      sudo echo "export MINIKUBE_WANTUPDATENOTIFICATION=false" >> /etc/profile.d/myvar.sh
-    fi
-
-    if ! sudo grep -q "export MINIKUBE_WANTREPORTERRORPROMPT=false" /etc/profile.d/myvar.sh ; then
-      sudo echo "export MINIKUBE_WANTREPORTERRORPROMPT=false" >> /etc/profile.d/myvar.sh
-    fi
-
-    if ! sudo grep -q "export MINIKUBE_HOME='/home/vagrant'" /etc/profile.d/myvar.sh ; then
-      sudo echo "export MINIKUBE_HOME='/home/vagrant'" >> /etc/profile.d/myvar.sh
-    fi
-
-    if ! sudo grep -q "export KUBECONFIG='/home/vagrant/.kube/config'" /etc/profile.d/myvar.sh ; then
-      sudo echo "export KUBECONFIG='/home/vagrant/.kube/config'" >> /etc/profile.d/myvar.sh
-    fi
 
   SHELL
   

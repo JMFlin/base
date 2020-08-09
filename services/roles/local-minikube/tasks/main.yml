@@ -29,7 +29,7 @@
   get_url:
     url: https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
     dest: .
-
+    
 - name: Install minikube
   shell: install minikube-linux-amd64 /usr/local/bin/minikube
   
@@ -41,11 +41,14 @@
     state: absent
     path: minikube-linux-amd64
 
-- name: Start minikube
-  shell: minikube start --driver={{ driver }}
+- name: Set memory
+  command: minikube config set memory {{ lookup('env','MINIKUBE_MEMORY') }}
+  
+- name: Set cpus
+  command: minikube config set cpus {{ lookup('env','MINIKUBE_CPU') }}
 
 - name: Start minikube
-  shell: minikube config set driver docker
+  shell: minikube start --driver={{ driver }}
   
 - name: Copy .kube 
   shell: cp -r /root/.kube {{ lookup('env','HOME') }} # /home/vagrant

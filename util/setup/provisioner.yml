@@ -6,4 +6,6 @@
   vars_files:
     - /home/ubuntu/.secrets/secrets.yaml
   roles:
-    - environment
+    #- file-permissions
+    - git
+    #- google-cloud

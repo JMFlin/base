@@ -33,7 +33,7 @@
 
 - name: Ensure conda is active on start up
   lineinfile:
-    path: /base/dotfiles/.bashrc-shared-settings
+    path: ../../base/dotfiles/.bashrc-shared-settings
     line: . /opt/conda/etc/profile.d/conda.sh
 
 - name: Message to user

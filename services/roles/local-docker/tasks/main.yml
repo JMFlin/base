@@ -24,6 +24,11 @@
 - name: Docker login
   command: docker login --username {{ secrets.docker.user }} --password {{ secrets.docker.password }}
 
+- name: Ensure docker log in on start up
+  lineinfile:
+    path: ~/.bashrc
+    line: docker login --username {{ secrets.docker.user }} --password {{ secrets.docker.password }}
+
 - name: Register output
   command: docker --version
   register: config
