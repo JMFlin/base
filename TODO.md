@@ -1,5 +1,5 @@
 ## Project ideas
 
-### Scrub youtube footage of antifa and link those images to facebook accounts
+### Scrub youtube footage of .. and link those images to .. accounts
 
 
