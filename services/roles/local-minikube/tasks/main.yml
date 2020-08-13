@@ -51,10 +51,10 @@
   shell: minikube start --driver={{ driver }}
   
 - name: Copy .kube 
-  shell: cp -r /root/.kube {{ lookup('env','HOME') }} # /home/vagrant
+  shell: cp -r /root/.kube {{ lookup('env','HOME') }}
 
 - name: Copy .minikube 
-  shell: cp -r /root/.minikube {{ lookup('env','HOME') }} # /home/vagrant
+  shell: cp -r /root/.minikube {{ lookup('env','HOME') }}
   
 - name: Permission to user for .kube
   shell: chown -R {{ lookup('env','USER') }} {{ lookup('env','HOME') }}/.kube

@@ -7,5 +7,5 @@
     - /home/ubuntu/.secrets/secrets.yaml
   roles:
     #- file-permissions
-    - git
-    #- google-cloud
+    #- git
+    - google-cloud
