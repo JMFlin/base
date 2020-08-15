@@ -17,7 +17,7 @@
     update_cache: no
 
 - name: Install kubectl
-  shell: sudo apt-get install -y kubectl
+  shell: sudo apt-get install -y kubectl #snap for 20.04
 
 - name: Register output version
   command: kubectl version --client

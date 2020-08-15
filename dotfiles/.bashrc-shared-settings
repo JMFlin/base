@@ -43,13 +43,6 @@ alias bashsettings='vim /km-gcp/dotfiles/.bashrc-shared-settings'
 alias home='cd /km-gcp/analysis'
 alias root='cd /'
 alias km='cd /km-gcp/'
-alias Projects='cd ~/Projects'
-alias Desktop='cd ~/Desktop'
-
-# mysql
-alias sql='mysql'
-
-alias ssh_vagrant='ssh -XY -i ../util/.vagrant/machines/default/virtualbox/private_key vagrant@127.0.0.1 -p 2222'
 
 function create_schemas() {
     for val in $@;do
@@ -98,15 +91,9 @@ function delete_minikube_all() {
     sudo rm -rf /usr/local/bin/minikube
 }
 
-
-# export PATH="$PATH:/home/vagrant/venv/lib/python3.7/site-packages"
-# export PATH="$PATH:/venv/lib/python3.7/site-packages"
-# export PYTHONPATH=/venv/lib/python3.7/site-packages
-# export VIRTUALENV_ALWAYS_COPY=1
-
 # https://www.kubeflow.org/docs/started/workstation/minikube-linux/
 export PATH=$PATH:$HOME/miniconda/bin
 export PATH=$PATH:$HOME/kubeflow/v1.0
 export KF_DIR=$HOME/kubeflow/v1.0/kubeflow-dev
 export CONFIG_URI="https://raw.githubusercontent.com/kubeflow/manifests/v1.0-branch/kfdef/kfctl_k8s_istio.v1.0.2.yaml" 
-. /opt/conda/etc/profile.d/conda.sh
+#. /opt/conda/etc/profile.d/conda.sh

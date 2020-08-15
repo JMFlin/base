@@ -10,11 +10,9 @@
 
 - name: Usermod
   shell: usermod -aG docker {{ lookup('env','USER') }}
-  become: True
 
 - name: Enable docker
   shell: systemctl enable docker
-  become: True
 
 - name: Remove installation file
   file:
