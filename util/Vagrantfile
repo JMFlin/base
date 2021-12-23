@@ -1,17 +1,30 @@
 # -*- mode: ruby -*-
 # vi: set ft=ruby :
 
+Vagrant.require_version ">= 2.2.14"
+
+# Install vagrant-disksize to allow resizing the vagrant box disk.
+unless Vagrant.has_plugin?("vagrant-disksize")
+  raise  Vagrant::Errors::VagrantError.new, "vagrant-disksize plugin is missing. Please install it using 'vagrant plugin install vagrant-disksize' and rerun 'vagrant up'"
+end
+
+MEM_RATIO = 0.50
+CPUS = 4
+CPU_EXEC_CAP = 100
+VM_NAME = "developer"
+DISK_SIZE = '450GB'
+
 Vagrant.configure("2") do |config|
   require 'time'
 
   # VM type
-  config.vm.box = "ubuntu/xenial64"
+  config.vm.box = "ubuntu/focal64"
 
   # Host name
-  config.vm.hostname = "vagrant"
+  config.vm.hostname = VM_NAME
 
   # Set disc size
-  config.disksize.size = '450GB'
+  config.disksize.size = DISK_SIZE
 
   # X11 forwarding over ssh
   config.ssh.forward_x11 = true
@@ -20,14 +33,22 @@ Vagrant.configure("2") do |config|
   config.vm.network "forwarded_port", guest: 8501, host: 8501
 
   # Message
-  config.vm.post_up_message = "Run 'vagrant ssh' to login to the machine."
+  up_message = <<-MSG
+    Login
+    * Run 'vagrant ssh' to login to the machine
+    
+    GCP
+    * Run 'gcloud auth login `account` --no-launch-browser'
+    * Run 'gcloud auth application-default login'
 
+    VSCODE
+    * Run 'vagrant ssh-config >> ~/.ssh/config'
+  MSG
+  config.vm.post_up_message = up_message
+  
   # Mount
   config.vm.synced_folder ".", "/vagrant", disabled: true
-  config.vm.synced_folder "../..", "/RUDOLF"
-
-  config.vm.synced_folder ENV['HOME'] + "/.kaggle", "/home/ubuntu/.kaggle", mount_options: ['dmode=700,fmode=600']
-  config.vm.synced_folder ENV['HOME'] + "/.secrets", "/home/ubuntu/.secrets", mount_options: ['dmode=700,fmode=600']
+  config.vm.synced_folder "../..", "/development"
 
   config.vm.provider "virtualbox" do |vb|
 
@@ -35,43 +56,29 @@ Vagrant.configure("2") do |config|
     vb.gui = false
 
     # Virtualbox name
-    vb.name = "developer-box"
+    vb.name = VM_NAME
 
-    # Give VM 75% system memory & access to all cpu cores on the host with an execution cap of 85%
-    mem_ratio = 0.75
-    cpu_exec_cap = 85
+  config.vm.provider "virtualbox" do |vb|
+    # Display the VirtualBox GUI when booting the machine
+    vb.gui = false
+
+    vb.name = VM_NAME
+ 
+    # Customize the amount of memory on the VM:
     host = RbConfig::CONFIG['host_os']
     
-    if host =~ /darwin/
-
-      cpus = `sysctl -n hw.ncpu`.to_i
-
+    if host =~ /darwin/ # mac host
       # sysctl returns Bytes and we need to convert to MB
-      mem = `sysctl -n hw.memsize`.to_i / 1024^2 * mem_ratio
-
-    elsif host =~ /linux/
-
-      cpus = `nproc`.to_i
-
+      mem = `sysctl -n hw.memsize`.to_i / 1024^2 * MEM_RATIO
+    elsif host =~ /linux/ # linux host
       # meminfo shows KB and we need to convert to MB
-      mem = `grep 'MemTotal' /proc/meminfo | sed -e 's/MemTotal://' -e 's/ kB//'`.to_i / 1024 * mem_ratio
-
-    else # Windows folks
-
-      cpus = `wmic cpu get NumberOfCores`.split("\n")[2].to_i
-      mem = (`wmic OS get TotalVisibleMemorySize`.split("\n")[2].to_i / 1024 * mem_ratio).round
-
+      mem = `grep 'MemTotal' /proc/meminfo | sed -e 's/MemTotal://' -e 's/ kB//'`.to_i / 1024 * MEM_RATIO
+    else # windows host
+      mem = (`wmic OS get TotalVisibleMemorySize`.split("\n")[2].to_i / 1024 * MEM_RATIO).round
     end
-
-    puts "Provisioning VM with host #{host} and #{cpus} CPU's (at #{cpu_exec_cap}%) and #{mem/1024} GB RAM."
     
     # Customize amount of memeory and cpu
-    #vb.customize ["modifyvm", :id, "--memory", "36000", "--cpus", "4", "--ioapic", "on", "--cpuexecutioncap", "100"]
-    vb.customize ["modifyvm", :id, "--memory", mem, "--cpus", cpus, "--ioapic", "on", "--cpuexecutioncap", cpu_exec_cap]
-    #vb.customize ["modifyvm", :id, "--memory", mem]
-    #vb.customize ["modifyvm", :id, "--cpus", cpus]
-    #vb.customize ["modifyvm", :id, "--cpuexecutioncap", cpu_exec_cap]
-
+    vb.customize ["modifyvm", :id, "--memory", mem, "--cpus", CPUS, "--ioapic", "on", "--cpuexecutioncap", CPU_EXEC_CAP]
   end
 
   # Fix potential issues with timezones and system clock
@@ -90,91 +97,99 @@ Vagrant.configure("2") do |config|
 
     sudo apt-get install -y software-properties-common && \
       sudo apt-get install dos2unix && \
-      # sudo add-apt-repository ppa:deadsnakes/ppa && \
       sudo apt-get update && \
       sudo timedatectl set-ntp no && \
       sudo apt-get install ntp && \
       sudo apt-get install wget && \
       sudo apt-get install openssl && \
-      sudo apt-get install imagemagick && \
-      # sudo apt-get install python-apt && \
-      sudo apt-get install postgresql-client-common && \
-      sudo apt-get install postgresql-client
+      sudo apt-get install curl build-essential make gcc -y
 
+    # Rust
+    curl --proto '=https' --tlsv1.2 https://sh.rustup.rs -sSf | sh -s -- -y
+    source $HOME/.cargo/env
 
-    # gcloud
-    export CLOUD_SDK_REPO="cloud-sdk-$(lsb_release -c -s)" && \
-      echo "deb http://packages.cloud.google.com/apt $CLOUD_SDK_REPO main" | sudo tee -a /etc/apt/sources.list.d/google-cloud-sdk.list && \
-      curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add - && \
-      sudo apt-get update && sudo apt-get install google-cloud-sdk -y && \
-      # gcloud components install kubectl && \
-      gcloud config set compute/region europe-west1 && \
-      gcloud config set compute/zone europe-west1-b
+    # Python
+    sudo apt-get -y install python-is-python3 python3-pip
+    sudo add-apt-repository ppa:deadsnakes/ppa
+    sudo pip3 install -r /development/base/util/setup/requirements.txt
+    sudo apt-get install gcc python3-dev python3-setuptools
+    sudo pip3 uninstall crcmod
+    sudo pip3 install --no-cache-dir -U crcmod
 
-    # Kaggle
-    chmod 600 /home/ubuntu/.secrets/secrets.yaml && \
-      chmod 600 /home/ubuntu/.kaggle/kaggle.json
+    # Pyenv
+    sudo apt-get install -y libssl-dev zlib1g-dev libbz2-dev \
+      libreadline-dev libsqlite3-dev llvm libncurses5-dev libncursesw5-dev \
+      xz-utils tk-dev libffi-dev liblzma-dev python-openssl
+    curl https://pyenv.run | bash
+    exec $SHELL
+    pyenv update
+    pyenv install 3.10.0
+    pyenv install 3.9.6
+    pip install --upgrade pip
+  
+    # Bazel
+    sudo apt-get install pkg-config zip g++ zlib1g-dev unzip
+    sudo apt install gnupg
+    curl -fsSL https://bazel.build/bazel-release.pub.gpg | gpg --dearmor > bazel.gpg
+    sudo mv bazel.gpg /etc/apt/trusted.gpg.d/
+    echo "deb [arch=amd64] https://storage.googleapis.com/bazel-apt stable jdk1.8" | sudo tee /etc/apt/sources.list.d/bazel.list
     
-    # X11
-    sudo apt-get install x11-xserver-utils -y
+    sudo apt update && sudo apt install bazel
+    sudo apt update && sudo apt full-upgrade
 
-    # dlib
-    sudo apt-get install build-essential cmake pkg-config libx11-dev libatlas-base-dev libgtk-3-dev libboost-python-dev -y
+    # Ansible
+    sudo apt-add-repository -y ppa:ansible/ansible  && \
+      sudo apt-get update  && \
+      sudo apt-get -y install ntp ansible
 
-    # ansible
-    sudo -E apt-add-repository -y ppa:ansible/ansible && \
-      sudo apt-get update && \
-      sudo apt-get -y install ansible
+    # Docker
+    sudo curl -L "https://github.com/docker/compose/releases/download/1.29.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+    sudo chmod +x /usr/local/bin/docker-compose
+    sudo ln -s /usr/local/bin/docker-compose /usr/bin/docker-compose
 
-    config.vm.provision "ansible" do |ansible|
-      ansible.verbose = "v"
-      ansible.playbook = "/RUDOLF/base/util/setup/provisioner.yml"
+    # Cloud SDK
+    sudo echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" | sudo tee -a /etc/apt/sources.list.d/google-cloud-sdk.list
+    sudo curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key --keyring /usr/share/keyrings/cloud.google.gpg add -
+    sudo apt-get update
+    sudo apt-get -y install google-cloud-sdk 
+    sudo apt-get -y install kubectl
+    sudo apt-get -y install google-cloud-sdk-app-engine-python google-cloud-sdk-app-engine-python-extras google-cloud-sdk-app-engine-java
+    sudo apt-get -y install google-cloud-sdk-bigtable-emulator google-cloud-sdk-cbt google-cloud-sdk-cloud-build-local
+    sudo apt-get -y install google-cloud-sdk-datalab google-cloud-sdk-datastore-emulator google-cloud-sdk-firestore-emulator google-cloud-sdk-pubsub-emulator
+    sudo apt-get -y install google-cloud-sdk-skaffold
+
+    # R
+    sudo apt install r-base-core
+    sudo R -e 'install.packages("tidyverse")' 
+
+    # SQL
+    sudo apt-get -y install mysql-client postgresql-client-common postgresql-client
+    sudo wget https://dl.google.com/cloudsql/cloud_sql_proxy.linux.amd64 -O /usr/local/bin/cloud_sql_proxy
+    sudo chmod o+x /usr/local/bin/cloud_sql_proxy
+
+    # Clean
+    sudo apt-get -y upgrade
+    sudo apt-get -y clean
+
+    if  [[ -f "/development/base/dotfiles/.bashrc-shared-settings" ]] && ! sudo grep -q "source /development/base/dotfiles/.bashrc-shared-settings" ~/.bashrc ; then
+      sudo echo "source /development/base/dotfiles/.bashrc-shared-settings" >> ~/.bashrc
+      dos2unix /development/base/dotfiles/.bashrc-shared-settings
+    fi
+
+    psql --version
+    mysql --version
+    R --version
+    gcloud --version
+    docker --version
+    docker-compose --version
+    ansible --version
+    bazel --version
+    rustc --version
+    cargo --version
+    python --version
+    pyenv --version
+
+    SHELL
     end
-
-    if ! sudo grep -q "export KAGGLE_CONFIG_DIR='/home/ubuntu/.kaggle'" /etc/profile.d/myvar.sh ; then
-      sudo echo "export KAGGLE_CONFIG_DIR='/home/ubuntu/.kaggle'" >> /etc/profile.d/myvar.sh
-    fi
-
-    if ! sudo grep -q "export GOOGLE_APPLICATION_CREDENTIALS='/home/ubuntu/.secrets/service_account.json'" /etc/profile.d/myvar.sh ; then
-      sudo echo "export GOOGLE_APPLICATION_CREDENTIALS='/home/ubuntu/.secrets/service_account.json'" >> /etc/profile.d/myvar.sh
-    fi
-
-    if ! sudo grep -q "export VIRTUALENV_ALWAYS_COPY=1" /etc/profile.d/myvar.sh ; then
-      sudo echo "export VIRTUALENV_ALWAYS_COPY=1" >> /etc/profile.d/myvar.sh
-    fi
-
-    if ! sudo grep -q "source /RUDOLF/base/dotfiles/.bashrc-shared-settings" .bashrc ; then
-      sudo echo "source /RUDOLF/base/dotfiles/.bashrc-shared-settings" >> .bashrc
-    fi
-
-    if ! sudo grep -q "export CHANGE_MINIKUBE_NONE_USER=true" /etc/profile.d/myvar.sh ; then
-      sudo echo "export CHANGE_MINIKUBE_NONE_USER=true" >> /etc/profile.d/myvar.sh
-    fi
-
-    if ! sudo grep -q "export MINIKUBE_WANTUPDATENOTIFICATION=false" /etc/profile.d/myvar.sh ; then
-      sudo echo "export MINIKUBE_WANTUPDATENOTIFICATION=false" >> /etc/profile.d/myvar.sh
-    fi
-
-    if ! sudo grep -q "export MINIKUBE_WANTREPORTERRORPROMPT=false" /etc/profile.d/myvar.sh ; then
-      sudo echo "export MINIKUBE_WANTREPORTERRORPROMPT=false" >> /etc/profile.d/myvar.sh
-    fi
-
-    if ! sudo grep -q "export MINIKUBE_HOME='/home/vagrant'" /etc/profile.d/myvar.sh ; then
-      sudo echo "export MINIKUBE_HOME='/home/vagrant'" >> /etc/profile.d/myvar.sh
-    fi
-
-    if ! sudo grep -q "export KUBECONFIG='/home/vagrant/.kube/config'" /etc/profile.d/myvar.sh ; then
-      sudo echo "export KUBECONFIG='/home/vagrant/.kube/config'" >> /etc/profile.d/myvar.sh
-    fi
-
-    if ! sudo grep -q "export MINIKUBE_MEMORY=26000" /etc/profile.d/myvar.sh ; then
-      sudo echo "export MINIKUBE_MEMORY=26000" >> /etc/profile.d/myvar.sh
-    fi
-
-    if ! sudo grep -q "export MINIKUBE_CPU=4" /etc/profile.d/myvar.sh ; then
-      sudo echo "export MINIKUBE_CPU=4" >> /etc/profile.d/myvar.sh
-    fi
-
-  SHELL
   
 end

@@ -1,99 +1,232 @@
-# source this file in ~/.bashrc to get settings and aliases
+# set default env variables
+export PROMPT_DIRTRIM=4
+export VISUAL=vim
+export EDITOR="$VISUAL"
+export KUBECONFIG=~/.kube/config
 
-export PROMPT_DIRTRIM=3
+export GREEN='\033[01;32m'
+export RED='\033[01;31m'
+export BLUE='\033[01;34m'
+export BLACK='\033[0;30m'
+export WHITE='\033[00m'
+export L_PURPLE='\033[1;35m'
+export L_RED='\033[0;31m'
+export L_GRAY='\033[0;37m'
+export NC='\033[0m' # No Color
+export ENDCOLOR="\e[0m"
+
 bind 'set bell-style none'
-export EDITOR=vim
 
+# unset default prompt for git aware prompt
+unset color_prompt force_color_prompt
+
+# don't put duplicate lines or lines starting with space in the history.
+# See bash(1) for more options
+HISTCONTROL=ignoreboth
+
+# append to the history file, don't overwrite it
+shopt -s histappend
+
+# for setting history length see HISTSIZE and HISTFILESIZE in bash(1)
+HISTSIZE=1000
+HISTFILESIZE=2000
+
+# sets git aware prompt with color coding
 parse_git_branch() {
- git branch 2> /dev/null | sed -e '/^[^*]/d' -e 's/* \(.*\)/(\1)/'
+    git branch 2> /dev/null | sed -e '/^[^*]/d' -e 's/* \(.*\)/(\1)/'
 }
-PS1='${debian_chroot:+($debian_chroot)}\[\033[1;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[01;31m\]$(parse_git_branch)\[\033[00m\]\$ '
-#PS1='\[\033[1;36m\]\u\[\033[1;31m\]@\[\033[1;32m\]\h:\[\033[1;35m\]\w\[\033[1;31m\]\$\[\033[0m\] '
+PS1='${debian_chroot:+($debian_chroot)}\['"${GREEN}"'\]\u@\h\['"${WHITE}"'\]:\['"${BLUE}"'\]\w\['"${RED}"'\]$(parse_git_branch)\['"${WHITE}"'\]\$ '
 
-# common aliases
+export PYENV_ROOT="$HOME/.pyenv"
+export PATH="$PYENV_ROOT/bin:$PATH"
+source $HOME/.cargo/env
+if command -v pyenv 1>/dev/null 2>&1; then
+ eval "$(pyenv init --path)"
+fi
+
+# common
 alias ll='ls -alF'
 alias la='ls -A'
-alias ls='ls -hN --color=auto --group-directories-first'
+alias ls='ls -hN -a --color=auto --group-directories-first'
 alias l='ls -CF'
 alias q='exit'
 alias c='clear'
 alias h='history'
 alias grep='grep --color=auto'
 
-alias main='source /user/home/venvs/main/bin/activate'
-alias venv='source /venv/bin/activate'
+# GCP auth
+alias gcurl='curl --header "Authorization: Bearer $(gcloud auth print-identity-token)"'
 
+# Kubernetes
 alias kpods='kubectl get pods'
 alias krunning='kubectl get pods --field-selector=status.phase=Running'
-alias kfailed='kubectl get pods --field-selector=status.phase=Failed'
-alias kimagepull='kubectl get pods --field-selector=status.phase=ImagePullBackOff'
-alias kdel_imagepull='kubectl delete pod --field-selector=status.phase=ImagePullBackOff'
-alias kdel_failed='kubectl delete pod --field-selector=status.phase==Failed'
-alias kdel_succeeded='kubectl delete pod --field-selector=status.phase==Succeeded'
+alias kdelete_pods='kubectl delete pod --field-selector=status.phase=ImagePullBackOff; kubectl delete pod --field-selector=status.phase==Failed; kubectl delete pod --field-selector=status.phase==Succeeded'
 
-alias git_large_files="git rev-list --objects --all | git cat-file --batch-check='%(objecttype) %(objectname) %(objectsize) %(rest)' | sed -n 's/^blob //p' | sort --numeric-sort --key=2 | tail -n 20 | cut -c 1-12,41- | $(command -v gnumfmt || echo numfmt) --field=2 --to=iec-i --suffix=B --padding=7 --round=nearest"
+# moving around
+alias dev='cl /development'
+alias cinfra='cl /development/cinfra'
+alias base='cl /development/base'
+alias analytics='cl /development/cinfra/analytics'
+alias uplift='cl /development/cinfra/analytics/uplift'
+alias clv='cl /development/cinfra/analytics/clv'
 
 # rc
 alias bashrc='vim ~/.bashrc'
 alias sourcebash='source ~/.bashrc'
-alias vimrc='vim ~/.vimrc'
-alias bashsettings='vim /km-gcp/dotfiles/.bashrc-shared-settings'
 
-# folders
-alias home='cd /km-gcp/analysis'
-alias root='cd /'
-alias km='cd /km-gcp/'
+# helper functions below
+
+usage() {
+    printf "\n${L_PURPLE}%s${reset}${ENDCOLOR}\n" "${*}" 1>&2
+}
+
+error() {
+    printf "\n${RED}!!! %s${reset}${ENDCOLOR} !!!\\n\n" "${*}" 1>&2
+}
+
+help_wanted() {
+    [ "$#" -ge "0" ] && [ "$1" = '-h' ] || [ "$1" = '--help' ] || [ "$1" = "-?" ]
+}
+
+finish() {
+  result=$?
+  return ${result}
+}
+
+function bq_dryrun() {
+    if help_wanted "$@" || [ $# -eq 0 ]
+    then
+        usage "bq_dryrun file.sql. Returns cost of the query in the file"
+        return 0
+    fi
+
+    local sql_file=$1
+    if [[ $? -ne 0 ]]
+    then
+        error 'Failed to set sql file'
+        return 1
+    fi
+    local bytes=$(bq query --use_legacy_sql=false --project_id=$(gcloud config get-value project) --dry_run < ${sql_file} | grep -o -E '[0-9]+')
+    printf "Cost per query ${RED}$(jq -n ${bytes}/1024/1024/1024/1024*5)${ENDCOLOR}\n"
+    printf "Cost if run hourly for a month ${RED}$(jq -n ${bytes}/1024/1024/1024/1024*5*24*30)${ENDCOLOR}\n"
+    printf "Cost if run daily for a month ${RED}$(jq -n ${bytes}/1024/1024/1024/1024*5*30)${ENDCOLOR}\n"
+}
 
 function create_schemas() {
+    if help_wanted "$@" || [ $# -eq 0 ]
+    then
+        usage "Usage: create_schemas dataset.table"
+        return 0
+    fi
     for val in $@;do
-        name=${val##*.}
+        local name=${val##*.}
         echo "Creating schema for '${name}'"
         bq show --format=prettyjson $val | jq '.schema.fields' > $name.schema
     done
 }
 
 function kconnect() {
-    kubectl exec -ti $1 /bin/bash
+    if help_wanted "$@" || [ $# -eq 0 ]
+    then
+        usage "SSH to a pod in current active context"
+        usage "kconnect pod_name (hint: get pod_name by running the command krunning)"
+        return 0
+    fi
+    kubectl exec --stdin --tty $1 -- /bin/bash
+}
+
+function kssh() {
+    if help_wanted "$@" || [ $# -eq 0 ]
+    then
+        usage "SSH to a pod in current active context"
+        usage "kssh pod_name (hint: get pod_name by running the command krunning)"
+        return 0
+    fi
+    kubectl exec --stdin --tty $1 -- /bin/bash
 }
 
 function klogs() {
+    if help_wanted "$@" || [ $# -eq 0 ]
+    then
+        usage "Usage: klogs example_pod_name"
+        return 0
+    fi
     kubectl logs -f $1
 }
 
-function gdelete_instance() {
-  gcloud compute instances delete $1
+function cl() {
+    if help_wanted "$@" || [ $# -eq 0 ]
+    then
+        usage "Usage: cl example_directory"
+        return 0
+    fi
+    local dir="$1"
+    local dir="${dir:=$HOME}"
+    if [[ -d "$dir" ]]; then
+        cd "$dir" >/dev/null; ls
+    else
+        echo "$dir: directory not found"
+    fi
 }
 
-function gstart_instance() {
-  gcloud compute instances start $1
+function git_new_branch() {
+    if help_wanted "$@" || [ $# -lt 2 ]
+    then
+        usage "Commits your branch, checks out composer-develop, does a git pull, and creates a new branch based on input"
+        usage "Usage: git_new_branch source_branch new_branch. git_new_branch composer-develop my_working_branch"
+        return 0
+    fi
+    local source_branch=$1
+    if [[ $? -ne 0 ]]
+    then
+        error 'Failed to set source_branch (first user argument)'
+        return 1
+    fi
+    local new_branch=$2
+    if [[ $? -ne 0 ]]
+    then
+        error 'Failed to set new_branch (second user argument)'
+        return 1
+    fi
+    git commit -am "commit for new branch creation"
+    git checkout ${source_branch}
+    git pull
+    git checkout -b ${new_branch}
 }
 
-function gstop_instance() {
-  gcloud compute instances stop $1
-}
+function list_commands() {
 
-function glist() {
-  gcloud compute instances list
-}
+    printf "\nHOW TO READ OUTPUT\n"
+    printf "Text in ${RED}red${ENDCOLOR} are function names that you can use \n"
+    printf "Text in ${L_PURPLE}purple${ENDCOLOR} are function descriptions \n\n"
 
-function gconf() {
-  gcloud config list
-}
+    printf "\nKUBERNETES\n"
+    printf "${RED}kdelete_pods${ENDCOLOR}\n"
+    printf "${L_PURPLE}Delete all pods with status ImagePullBackOff, Failed or Succeeded${ENDCOLOR}\n\n"
+    printf "${RED}krunning${ENDCOLOR}\n"
+    printf "${L_PURPLE}Get all currently running pods in cluster${ENDCOLOR}\n\n"
+    printf "${RED}kpods${ENDCOLOR}\n"
+    printf "${L_PURPLE}Get all pods in cluster${ENDCOLOR}\n\n"
+    printf "${RED}kconnect${ENDCOLOR}"
+    printf "$(kconnect -?) \n"
+    printf "${RED}kssh${ENDCOLOR}"
+    printf "$(kssh -?) \n"
+    printf "${RED}klogs${ENDCOLOR}"
+    printf "$(klogs -?) \n"
 
-function delete_minikube_all() {
-    sudo minikube stop
-    sudo minikube delete
-    sudo rm -rf ~/.kube
-    sudo rm -rf ~/.minikube
-    sudo rm -rf /var/lib/minikube
-    sudo rm -rf /etc/kubernetes
-    sudo rm -rf /root/.minikube
-    sudo rm -rf /usr/local/bin/minikube
-}
+    printf "\nGIT\n"
+    printf "${RED}git_new_branch${ENDCOLOR}"
+    printf "$(git_new_branch -?) \n"
 
-# https://www.kubeflow.org/docs/started/workstation/minikube-linux/
-export PATH=$PATH:$HOME/miniconda/bin
-export PATH=$PATH:$HOME/kubeflow/v1.0
-export KF_DIR=$HOME/kubeflow/v1.0/kubeflow-dev
-export CONFIG_URI="https://raw.githubusercontent.com/kubeflow/manifests/v1.0-branch/kfdef/kfctl_k8s_istio.v1.0.2.yaml" 
-#. /opt/conda/etc/profile.d/conda.sh
+    printf "\nBIGQUERY\n"
+    printf "${RED}bq_dryrun${ENDCOLOR}"
+    printf "$(bq_dryrun -?) \n"
+
+    printf "\nMISC\n"
+    printf "${RED}gcurl${ENDCOLOR}\n"
+    printf "${L_PURPLE}Runs curl with Bearer gcloud auth print-identity-token${ENDCOLOR}\n\n"
+    printf "${RED}cl${ENDCOLOR}"
+    printf "$(cl -?) \n"
+
+    printf "${GREEN}If you want to improve these descriptions please edit the files in ms/util/settings/templates${ENDCOLOR}\n"
+}
