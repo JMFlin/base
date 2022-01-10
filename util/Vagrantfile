@@ -34,15 +34,26 @@ Vagrant.configure("2") do |config|
 
   # Message
   up_message = <<-MSG
+
+    Vscode
+    * Run 'vagrant ssh-config >> ~/.ssh/config'
+
     Login
     * Run 'vagrant ssh' to login to the machine
+    * Run 'source ~/.bashrc' inside the machine
     
     GCP
     * Run 'gcloud auth login `account` --no-launch-browser'
     * Run 'gcloud auth application-default login'
 
-    VSCODE
-    * Run 'vagrant ssh-config >> ~/.ssh/config'
+    Kubectl
+    * Run 'gcloud container clusters get-credentials `cluster name`'
+
+    Pyenv
+    * pyenv update
+    * pyenv install 3.10.0
+    * pyenv install 3.9.6
+
   MSG
   config.vm.post_up_message = up_message
   
@@ -96,13 +107,15 @@ Vagrant.configure("2") do |config|
   config.vm.provision "shell", inline: <<-SHELL
 
     sudo apt-get install -y software-properties-common && \
-      sudo apt-get install dos2unix && \
-      sudo apt-get update && \
+      sudo apt-get -y install dos2unix && \
+      sudo apt-get -y update && \
       sudo timedatectl set-ntp no && \
-      sudo apt-get install ntp && \
-      sudo apt-get install wget && \
-      sudo apt-get install openssl && \
-      sudo apt-get install curl build-essential make gcc -y
+      sudo apt-get -y install ntp && \
+      sudo apt-get -y install wget && \
+      sudo apt-get -y install openssl && \
+      sudo apt-get -y install curl build-essential make gcc && \
+      sudo apt-get -y install gfortran libopenblas-dev liblapack-dev && \
+      sudo apt-get -y install graphviz libgraphviz-dev graphviz-dev pkg-config
 
     # Rust
     curl --proto '=https' --tlsv1.2 https://sh.rustup.rs -sSf | sh -s -- -y
@@ -110,11 +123,9 @@ Vagrant.configure("2") do |config|
 
     # Python
     sudo apt-get -y install python-is-python3 python3-pip
-    sudo add-apt-repository ppa:deadsnakes/ppa
+    sudo add-apt-repository ppa:deadsnakes/ppa -y
     sudo pip3 install -r /development/base/util/setup/requirements.txt
-    sudo apt-get install gcc python3-dev python3-setuptools
-    sudo pip3 uninstall crcmod
-    sudo pip3 install --no-cache-dir -U crcmod
+    sudo apt-get -y install gcc python3-dev python3-setuptools
 
     # Pyenv
     sudo apt-get install -y libssl-dev zlib1g-dev libbz2-dev \
@@ -122,20 +133,17 @@ Vagrant.configure("2") do |config|
       xz-utils tk-dev libffi-dev liblzma-dev python-openssl
     curl https://pyenv.run | bash
     exec $SHELL
-    pyenv update
-    pyenv install 3.10.0
-    pyenv install 3.9.6
     pip install --upgrade pip
-  
+
     # Bazel
-    sudo apt-get install pkg-config zip g++ zlib1g-dev unzip
-    sudo apt install gnupg
+    sudo apt-get -y install pkg-config zip g++ zlib1g-dev unzip
+    sudo apt -y install gnupg
     curl -fsSL https://bazel.build/bazel-release.pub.gpg | gpg --dearmor > bazel.gpg
     sudo mv bazel.gpg /etc/apt/trusted.gpg.d/
     echo "deb [arch=amd64] https://storage.googleapis.com/bazel-apt stable jdk1.8" | sudo tee /etc/apt/sources.list.d/bazel.list
     
-    sudo apt update && sudo apt install bazel
-    sudo apt update && sudo apt full-upgrade
+    sudo apt update && sudo apt -y install bazel
+    sudo apt update && sudo apt -y full-upgrade
 
     # Ansible
     sudo apt-add-repository -y ppa:ansible/ansible  && \
@@ -143,24 +151,65 @@ Vagrant.configure("2") do |config|
       sudo apt-get -y install ntp ansible
 
     # Docker
+    sudo apt-get remove docker docker-engine docker.io containerd runc
+    sudo apt-get install -y \
+      ca-certificates \
+      curl \
+      gnupg \
+      lsb-release
+    sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+    echo \
+      "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu \
+      $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+    sudo apt-get update
+    sudo apt-get install docker-ce docker-ce-cli containerd.io
     sudo curl -L "https://github.com/docker/compose/releases/download/1.29.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
     sudo chmod +x /usr/local/bin/docker-compose
     sudo ln -s /usr/local/bin/docker-compose /usr/bin/docker-compose
+    sudo docker run hello-world
+
+    # Kubectl
+    curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+    sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+
+    # Kustomize
+    curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
+    sudo install -o root -g root -m 0755 kustomize /usr/local/bin/kustomize
 
     # Cloud SDK
     sudo echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" | sudo tee -a /etc/apt/sources.list.d/google-cloud-sdk.list
     sudo curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key --keyring /usr/share/keyrings/cloud.google.gpg add -
     sudo apt-get update
     sudo apt-get -y install google-cloud-sdk 
-    sudo apt-get -y install kubectl
     sudo apt-get -y install google-cloud-sdk-app-engine-python google-cloud-sdk-app-engine-python-extras google-cloud-sdk-app-engine-java
     sudo apt-get -y install google-cloud-sdk-bigtable-emulator google-cloud-sdk-cbt google-cloud-sdk-cloud-build-local
     sudo apt-get -y install google-cloud-sdk-datalab google-cloud-sdk-datastore-emulator google-cloud-sdk-firestore-emulator google-cloud-sdk-pubsub-emulator
     sudo apt-get -y install google-cloud-sdk-skaffold
+    sudo apt-get -y install google-cloud-sdk-kpt google-cloud-sdk google-cloud-sdk
 
     # R
-    sudo apt install r-base-core
-    sudo R -e 'install.packages("tidyverse")' 
+    sudo apt install libgsl-dev
+    sudo apt-get install libxml2-dev
+    sudo apt-get install libcurl4-openssl-dev
+#    sudo apt install r-base-core
+    sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys E298A3A825C0D65DFD57CBB651716619E084DAB9
+    sudo add-apt-repository 'deb https://cloud.r-project.org/bin/linux/ubuntu focal-cran40/'
+    sudo apt install r-base
+    sudo R -e 'if (!requireNamespace("BiocManager", quietly = TRUE)) install.packages("BiocManager")'
+    sudo R -e 'BiocManager::install(c("magrittr", "pkgconfig", "igraph"), force = TRUE)'
+    sudo R -e 'BiocManager::install(c("graph", "RBGL", "ggm"))'
+    sudo R -e 'install.packages(c("devtools", "Rcpp", "abind", "corpcor", "DEoptimR", "robustbase", "bdsmatrix", "sfsmisc", "RSpectra", "kernlab"))'
+    sudo R -e 'install.packages(c("tidyverse", "fastICA", "bnlearn", "kpcalg", "pcalg", "CausalImpact"))'
+    sudo R -e 'library(devtools); install_github("Diviyan-Kalainathan/RCIT")'
+
+    # Go
+    sudo apt -y install golang
+
+    # kpt
+    go install -v github.com/GoogleContainerTools/kpt
+
+    # Kustomize
+    GOBIN=$(pwd)/ GO111MODULE=on go get sigs.k8s.io/kustomize/kustomize/v3
 
     # SQL
     sudo apt-get -y install mysql-client postgresql-client-common postgresql-client
@@ -188,6 +237,11 @@ Vagrant.configure("2") do |config|
     cargo --version
     python --version
     pyenv --version
+    kubectl version --client
+    go version
+    kpt version
+    kustomize version
+
 
     SHELL
     end
