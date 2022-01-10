@@ -1,5 +1,0 @@
-black
-bandit
-pydocstyle
-pre-commit
-pylint

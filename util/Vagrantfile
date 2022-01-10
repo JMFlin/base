@@ -132,8 +132,6 @@ Vagrant.configure("2") do |config|
       libreadline-dev libsqlite3-dev llvm libncurses5-dev libncursesw5-dev \
       xz-utils tk-dev libffi-dev liblzma-dev python-openssl
     curl https://pyenv.run | bash
-    exec $SHELL
-    pip install --upgrade pip
 
     # Bazel
     sudo apt-get -y install pkg-config zip g++ zlib1g-dev unzip
