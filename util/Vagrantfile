@@ -119,7 +119,6 @@ Vagrant.configure("2") do |config|
 
     # Rust
     curl --proto '=https' --tlsv1.2 https://sh.rustup.rs -sSf | sh -s -- -y
-    source $HOME/.cargo/env
 
     # Python
     sudo apt-get -y install python-is-python3 python3-pip
@@ -185,18 +184,18 @@ Vagrant.configure("2") do |config|
     sudo apt-get -y install google-cloud-sdk-kpt google-cloud-sdk google-cloud-sdk
 
     # R
-    sudo apt install libgsl-dev
-    sudo apt-get install libxml2-dev
-    sudo apt-get install libcurl4-openssl-dev
-#    sudo apt install r-base-core
+    sudo apt-get -y install libgsl-dev
+    sudo apt-get -y install libxml2-dev
+    sudo apt-get -y install libcurl4-openssl-dev
     sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys E298A3A825C0D65DFD57CBB651716619E084DAB9
     sudo add-apt-repository 'deb https://cloud.r-project.org/bin/linux/ubuntu focal-cran40/'
-    sudo apt install r-base
+    sudo apt -y install r-base
     sudo R -e 'if (!requireNamespace("BiocManager", quietly = TRUE)) install.packages("BiocManager")'
     sudo R -e 'BiocManager::install(c("magrittr", "pkgconfig", "igraph"), force = TRUE)'
     sudo R -e 'BiocManager::install(c("graph", "RBGL", "ggm"))'
-    sudo R -e 'install.packages(c("devtools", "Rcpp", "abind", "corpcor", "DEoptimR", "robustbase", "bdsmatrix", "sfsmisc", "RSpectra", "kernlab"))'
+    sudo R -e 'install.packages(c("Rcpp", "abind", "corpcor", "DEoptimR", "robustbase", "bdsmatrix", "sfsmisc", "RSpectra", "kernlab"))'
     sudo R -e 'install.packages(c("tidyverse", "fastICA", "bnlearn", "kpcalg", "pcalg", "CausalImpact"))'
+    sudo R -e 'install.packages(c("devtools"))'
     sudo R -e 'library(devtools); install_github("Diviyan-Kalainathan/RCIT")'
 
     # Go
