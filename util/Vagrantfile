@@ -217,6 +217,11 @@ Vagrant.configure("2") do |config|
     sudo wget https://dl.google.com/cloudsql/cloud_sql_proxy.linux.amd64 -O /usr/local/bin/cloud_sql_proxy
     sudo chmod o+x /usr/local/bin/cloud_sql_proxy
 
+    # git lfs
+    sudo curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash
+    sudo apt-get install git-lfs
+    sudo git lfs install
+
     # Clean
     sudo apt-get -y upgrade
     sudo apt-get -y clean
@@ -242,6 +247,7 @@ Vagrant.configure("2") do |config|
     go version
     kpt version
     kustomize version
+    git --version
 
 
     SHELL
